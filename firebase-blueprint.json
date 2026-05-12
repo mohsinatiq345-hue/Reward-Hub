@@ -28,7 +28,7 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "type": { "type": "string", "enum": ["ad", "survey", "referral_bonus"] },
+        "type": { "type": "string", "enum": ["ad", "referral_bonus"] },
         "points": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" }
       },

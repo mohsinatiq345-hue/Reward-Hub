@@ -173,9 +173,10 @@ export default function App() {
           const allQ = collection(db, 'withdrawals');
           onSnapshot(allQ, (snapshot) => {
             const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Withdrawal));
-            setAllWithdrawals(list.sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds));
+            const sortedList = list.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            setAllWithdrawals(sortedList);
             // Also update the 'withdrawals' state so admin sees their own history too if they have any
-            const userOnes = list.filter(w => w.userId === currentUser.uid);
+            const userOnes = sortedList.filter(w => w.userId === currentUser.uid);
             setWithdrawals(userOnes);
           }, (err) => handleFirestoreError(err, OperationType.LIST, 'withdrawals'));
         } else {
@@ -183,7 +184,7 @@ export default function App() {
           const q = query(collection(db, 'withdrawals'), where('userId', '==', currentUser.uid));
           onSnapshot(q, (snapshot) => {
             const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Withdrawal));
-            setWithdrawals(list.sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds));
+            setWithdrawals(list.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
           }, (err) => handleFirestoreError(err, OperationType.LIST, 'withdrawals (query)'));
         }
       } else {
@@ -212,7 +213,7 @@ export default function App() {
   const [isTaskRunning, setIsTaskRunning] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
-  const [currentTask, setCurrentTask] = useState<{amount: number, type: 'ad' | 'survey'} | null>(null);
+  const [currentTask, setCurrentTask] = useState<{amount: number, type: 'ad'} | null>(null);
 
   // Timer for task verification
   useEffect(() => {
@@ -232,7 +233,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [timeRemaining, isTaskRunning, currentTask, user]);
 
-  const startTask = (amount: number, type: 'ad' | 'survey') => {
+  const startTask = (amount: number, type: 'ad') => {
     if (isTaskRunning || !user) return;
     
     // Save to localStorage so it persists after redirect/reload
@@ -242,8 +243,8 @@ export default function App() {
       userId: user.uid
     }));
     
-    const placeholderLink = type === 'ad' ? "https://www.google.com/search?q=advertisement" : "https://www.google.com/search?q=survey";
-    window.location.href = placeholderLink;
+    const adLink = "https://omg10.com/4/10791490";
+    window.location.href = adLink;
   };
 
   const handleAutoClaim = async (task: {amount: number, type: string}, uid: string) => {
@@ -674,22 +675,13 @@ export default function App() {
 
               <div className="grid gap-4">
                 <EarnCard 
-                  title="Video Revenue" 
-                  desc="High-impact video ads for maximum rewards." 
+                  title="Daily Ad Video" 
+                  desc="Watch a high-impact video ad to earn coins instantly." 
                   pts="5" 
                   disabled={isTaskRunning}
                   onClick={() => startTask(5, 'ad')} 
                   icon={<ExternalLink className="w-5 h-5" />}
                   color="indigo"
-                />
-                <EarnCard 
-                  title="Market Insight" 
-                  desc="Share your opinion on new products." 
-                  pts="10" 
-                  disabled={isTaskRunning}
-                  onClick={() => startTask(10, 'survey')} 
-                  icon={<ExternalLink className="w-5 h-5" />}
-                  color="emerald"
                 />
                 
                 <div className="glass-card p-5 bg-amber-50/30 border-amber-200/50 flex items-start gap-4">
@@ -849,6 +841,9 @@ export default function App() {
           <TabButton active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<TrendingUp />} label="Stats" />
           <TabButton active={activeTab === 'earn'} onClick={() => setActiveTab('earn')} icon={<Coins />} label="Earn" />
           <TabButton active={activeTab === 'withdraw'} onClick={() => setActiveTab('withdraw')} icon={<Wallet />} label="Payout" />
+          {user?.email === "mohsinatiq345@gmail.com" && (
+            <TabButton active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} icon={<Shield />} label="Admin" />
+          )}
         </div>
       </nav>
     </div>
