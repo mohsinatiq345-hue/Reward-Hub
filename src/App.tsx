@@ -98,6 +98,25 @@ interface Withdrawal {
   createdAt: any;
 }
 
+const TechLogo = ({ className = "w-10 h-10" }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#4F46E5" />
+        <stop offset="100%" stopColor="#06B6D4" />
+      </linearGradient>
+      <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="3" result="blur" />
+        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      </filter>
+    </defs>
+    <path d="M50 5 L85 25 L85 75 L50 95 L15 75 L15 25 Z" stroke="url(#logo-grad)" strokeWidth="4" filter="url(#neon-glow)" />
+    <path d="M35 35 L65 35 L65 50 L35 50 L65 75" stroke="#E2E8F0" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="50" cy="50" r="15" stroke="url(#logo-grad)" strokeWidth="2" strokeDasharray="4 4" />
+    <path d="M50 15 L50 25 M85 50 L75 50 M50 85 L50 75 M15 50 L25 50" stroke="#06B6D4" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
 // --- Utils ---
 const generateReferralCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -114,6 +133,7 @@ export default function App() {
 
   // --- Auth & Data Prep ---
   useEffect(() => {
+    document.title = "Rewards Hub";
     // Check for referral code in URL
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
@@ -214,6 +234,7 @@ export default function App() {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
   const [currentTask, setCurrentTask] = useState<{amount: number, type: 'ad'} | null>(null);
+  const [withdrawAmountRs, setWithdrawAmountRs] = useState<string>("");
 
   // Timer for task verification
   useEffect(() => {
@@ -343,6 +364,7 @@ export default function App() {
         createdAt: serverTimestamp()
       }).catch(err => handleFirestoreError(err, OperationType.WRITE, 'withdrawals'));
 
+      setWithdrawAmountRs("");
       alert("Withdrawal request submitted! Admin will verify soon.");
     } catch (err) {
       console.error(err);
@@ -413,8 +435,8 @@ export default function App() {
           className="space-y-8 max-w-sm w-full relative z-10"
         >
                <div className="flex justify-between items-start">
-                  <div className="w-20 h-20 bg-gradient-to-tr from-brand-primary to-brand-secondary rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2xl shadow-brand-primary/30 rotate-12 border-4 border-white/20">
-                    <Gift className="w-10 h-10 text-white -rotate-12" />
+                  <div className="w-20 h-20 bg-slate-900 rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2xl shadow-brand-primary/30 rotate-12 border-4 border-white/10">
+                    <TechLogo className="w-12 h-12 -rotate-12" />
                   </div>
                   <div className="space-y-2">
                     <h1 className="text-5xl font-display font-black tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
@@ -489,8 +511,8 @@ export default function App() {
       <header className="bg-white/70 backdrop-blur-xl border-b border-slate-200/50 p-4 sticky top-0 z-[60]">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 rotate-3 border-2 border-white">
-              <Gift className="w-6 h-6 text-white -rotate-3" />
+            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 rotate-3 border-2 border-white/10">
+              <TechLogo className="w-6 h-6 -rotate-3" />
             </div>
             <div className="flex flex-col -space-y-1">
               <span className="font-display font-black text-xl tracking-tight text-slate-900 leading-none">REWARDS</span>
@@ -506,7 +528,13 @@ export default function App() {
                <div className="w-7 h-7 bg-white/10 rounded-xl flex items-center justify-center">
                  <Coins className="w-3.5 h-3.5 text-brand-primary" />
                </div>
-               <span className="font-display font-black text-sm tabular-nums">{userData?.points || 0} <span className="text-[10px] text-white/50">PTS</span></span>
+               <div className="flex flex-col -space-y-1">
+                 <span className="font-display font-black text-sm tabular-nums">
+                   {userData ? userData.points : "..."} 
+                   <span className="text-[10px] text-white/50 ml-1">PTS</span>
+                 </span>
+                 {!userData && <span className="text-[8px] text-white/30 font-black uppercase tracking-widest">Syncing</span>}
+               </div>
              </motion.div>
              <button onClick={logout} className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all">
                <LogOut className="w-5 h-5" />
@@ -744,7 +772,39 @@ export default function App() {
                 <div className="space-y-5">
                   <InputField name="accountName" label="Full Legal Name" placeholder="As on your account" required />
                   <InputField name="accountNumber" label="Account Number" placeholder="03XXXXXXXXX" required />
-                  <InputField name="amountRs" label="Withdrawal Amount (PKR)" type="number" placeholder="Min 50" min="50" required />
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-end px-1">
+                      <label className="text-[10px] font-display font-black text-slate-400 uppercase tracking-widest">Withdrawal Amount (PKR)</label>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (userData) {
+                            const maxRs = Math.floor(userData.points / 100);
+                            setWithdrawAmountRs(maxRs.toString());
+                          }
+                        }}
+                        className="text-[10px] font-black text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded-md hover:bg-brand-primary/20 transition-all font-sans"
+                      >
+                        MAX
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        name="amountRs" 
+                        type="number" 
+                        placeholder="Min 50" 
+                        min="50" 
+                        required 
+                        value={withdrawAmountRs}
+                        onChange={(e) => setWithdrawAmountRs(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-brand-primary/10 focus:border-brand-primary focus:bg-white transition-all shadow-inner"
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-end pointer-events-none">
+                        <span className="text-[9px] font-black text-slate-400 uppercase leading-none">Equals</span>
+                        <span className="text-xs font-black text-brand-primary">{(Number(withdrawAmountRs) * 100) || 0} Pts</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <button type="submit" className="w-full bg-slate-900 text-white font-display font-black text-xs uppercase tracking-[0.2em] py-5 rounded-[2rem] shadow-2xl shadow-slate-900/20 active:scale-95 transition-all">
@@ -781,7 +841,7 @@ export default function App() {
                           <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${w.status === 'pending' ? 'bg-amber-100 text-amber-700' : w.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                             {w.status === 'Approved' ? 'Approval' : w.status}
                           </span>
-                          {w.status === 'pending' && (
+                          {w.status === 'pending' && user?.email === "mohsinatiq345@gmail.com" && (
                             <button onClick={() => verifyWithdrawal(w.id)} className="block w-full text-[9px] font-black underline text-brand-primary opacity-60">
                                MANUAL APPROVE
                             </button>
@@ -827,17 +887,6 @@ export default function App() {
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-black">Control Panel</h2>
                     <div className="flex gap-2">
-                       <button 
-                         onClick={async () => {
-                           if (user && userData) {
-                             await updateDoc(doc(db, 'users', user.uid), { points: (userData.points || 0) + 5000 });
-                             alert("5000 Test Points Added!");
-                           }
-                         }}
-                         className="bg-brand-primary text-white text-[10px] font-black px-3 py-1 rounded-lg"
-                       >
-                         +5k Test Points
-                       </button>
                        <button onClick={() => setIsAdminAuthenticated(false)} className="text-xs text-red-500 font-bold">Lock</button>
                     </div>
                   </div>
