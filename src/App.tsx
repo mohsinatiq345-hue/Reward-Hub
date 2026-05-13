@@ -94,7 +94,7 @@ interface Withdrawal {
   method: string;
   accountName: string;
   accountNumber: string;
-  status: 'pending' | 'verified' | 'rejected';
+  status: 'pending' | 'Approved' | 'rejected';
   createdAt: any;
 }
 
@@ -128,7 +128,7 @@ export default function App() {
             const { task, startTime, userId } = JSON.parse(savedTask);
             if (userId === currentUser.uid) {
               const elapsed = (Date.now() - startTime) / 1000;
-              const duration = 30; 
+              const duration = 15; 
               setCurrentTask(task);
               setIsTaskRunning(true);
               if (elapsed < duration) {
@@ -236,6 +236,9 @@ export default function App() {
   const startTask = (amount: number, type: 'ad') => {
     if (isTaskRunning || !user) return;
     
+    const proceed = window.confirm("Do you want to start the 15-second timer to earn points? You must stay on this page to claim rewards.");
+    if (!proceed) return;
+
     // Save to localStorage so it persists after redirect/reload
     localStorage.setItem('pendingTask', JSON.stringify({
       task: { amount, type },
@@ -244,7 +247,12 @@ export default function App() {
     }));
     
     const adLink = "https://omg10.com/4/10791490";
-    window.location.href = adLink;
+    window.open(adLink, '_blank');
+    
+    // Immediately trigger the timer in the UI
+    setIsTaskRunning(true);
+    setTimeRemaining(15);
+    setCurrentTask({ amount, type });
   };
 
   const handleAutoClaim = async (task: {amount: number, type: string}, uid: string) => {
@@ -343,13 +351,13 @@ export default function App() {
   };
 
   const verifyWithdrawal = async (id: string) => {
-    await updateDoc(doc(db, 'withdrawals', id), { status: 'verified' }).catch(err => handleFirestoreError(err, OperationType.WRITE, 'withdrawals/' + id));
-    alert("Withdrawal verified.");
+    await updateDoc(doc(db, 'withdrawals', id), { status: 'Approved' }).catch(err => handleFirestoreError(err, OperationType.WRITE, 'withdrawals/' + id));
+    alert("Withdrawal Approved.");
   };
 
   // --- Admin Logic ---
   const handleAdminVerify = async (withdrawal: Withdrawal, message: string) => {
-    await updateDoc(doc(db, 'withdrawals', withdrawal.id), { status: 'verified' }).catch(err => handleFirestoreError(err, OperationType.WRITE, 'withdrawals/' + withdrawal.id));
+    await updateDoc(doc(db, 'withdrawals', withdrawal.id), { status: 'Approved' }).catch(err => handleFirestoreError(err, OperationType.WRITE, 'withdrawals/' + withdrawal.id));
     await updateDoc(doc(db, 'users', withdrawal.userId), {
       notification: {
         message: message || "Your withdrawal has been approved!",
@@ -404,19 +412,21 @@ export default function App() {
           animate={{ opacity: 1, scale: 1 }} 
           className="space-y-8 max-w-sm w-full relative z-10"
         >
-          <div className="space-y-4">
-            <div className="w-20 h-20 bg-gradient-to-tr from-brand-primary to-brand-secondary rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2xl shadow-brand-primary/30 rotate-12">
-              <Gift className="w-10 h-10 text-white -rotate-12" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-5xl font-display font-black tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
-                REWARDS<br/>HUB PK
-              </h1>
-              <p className="text-slate-400 font-medium text-sm px-4">
-                The most trusted rewards platform in Pakistan. Watch, Earn, and Withdraw instantly.
-              </p>
-            </div>
-          </div>
+               <div className="flex justify-between items-start">
+                  <div className="w-20 h-20 bg-gradient-to-tr from-brand-primary to-brand-secondary rounded-[2.5rem] mx-auto flex items-center justify-center shadow-2xl shadow-brand-primary/30 rotate-12 border-4 border-white/20">
+                    <Gift className="w-10 h-10 text-white -rotate-12" />
+                  </div>
+                  <div className="space-y-2">
+                    <h1 className="text-5xl font-display font-black tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-b from-white to-white/60">
+                      REWARDS<br/>HUB PK
+                    </h1>
+                    <div className="flex items-center gap-2 justify-center">
+                      <div className="h-0.5 w-4 bg-brand-primary" />
+                      <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Official Rewards Hub</p>
+                      <div className="h-0.5 w-4 bg-brand-primary" />
+                    </div>
+                  </div>
+                </div>
 
           <div className="space-y-4 pt-4">
             <button 
@@ -479,10 +489,13 @@ export default function App() {
       <header className="bg-white/70 backdrop-blur-xl border-b border-slate-200/50 p-4 sticky top-0 z-[60]">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 rotate-3">
-              <Coins className="w-4 h-4 text-white -rotate-3" />
+            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 rotate-3 border-2 border-white">
+              <Gift className="w-6 h-6 text-white -rotate-3" />
             </div>
-            <span className="font-display font-black text-xl tracking-tight text-slate-900">RH<span className="text-brand-primary">PK</span></span>
+            <div className="flex flex-col -space-y-1">
+              <span className="font-display font-black text-xl tracking-tight text-slate-900 leading-none">REWARDS</span>
+              <span className="font-display font-black text-xs tracking-[0.2em] text-brand-primary ml-0.5">HUB PK</span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
              <motion.div 
@@ -667,7 +680,7 @@ export default function App() {
                     <motion.div 
                       className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"
                       initial={{ width: "100%" }}
-                      animate={{ width: `${(timeRemaining || 0) / 30 * 100}%` }}
+                      animate={{ width: `${(timeRemaining || 0) / 15 * 100}%` }}
                     />
                   </div>
                 </motion.div>
@@ -765,12 +778,12 @@ export default function App() {
                          </div>
                        </div>
                        <div className="text-right space-y-1.5">
-                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${w.status === 'pending' ? 'bg-amber-100 text-amber-700' : w.status === 'verified' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                            {w.status}
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full ${w.status === 'pending' ? 'bg-amber-100 text-amber-700' : w.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {w.status === 'Approved' ? 'Approval' : w.status}
                           </span>
                           {w.status === 'pending' && (
                             <button onClick={() => verifyWithdrawal(w.id)} className="block w-full text-[9px] font-black underline text-brand-primary opacity-60">
-                               MANUAL VERIFY
+                               MANUAL APPROVE
                             </button>
                           )}
                        </div>
@@ -813,7 +826,20 @@ export default function App() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-black">Control Panel</h2>
-                    <button onClick={() => setIsAdminAuthenticated(false)} className="text-xs text-red-500 font-bold">Lock</button>
+                    <div className="flex gap-2">
+                       <button 
+                         onClick={async () => {
+                           if (user && userData) {
+                             await updateDoc(doc(db, 'users', user.uid), { points: (userData.points || 0) + 5000 });
+                             alert("5000 Test Points Added!");
+                           }
+                         }}
+                         className="bg-brand-primary text-white text-[10px] font-black px-3 py-1 rounded-lg"
+                       >
+                         +5k Test Points
+                       </button>
+                       <button onClick={() => setIsAdminAuthenticated(false)} className="text-xs text-red-500 font-bold">Lock</button>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -927,16 +953,16 @@ function AdminRequestCard({ request, onApprove, onReject, onSendMsg }: any) {
   const [msg, setMsg] = useState("");
   return (
     <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-md space-y-4">
-      <div className="flex justify-between items-start">
-         <div className="space-y-1">
-           <div className="flex items-center gap-2">
-              <span className="font-black text-lg">Rs {request.amountRs}</span>
-              <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${request.status === 'pending' ? 'bg-amber-100 text-amber-700' : request.status === 'verified' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                {request.status}
-              </span>
-           </div>
-           <p className="text-xs font-bold text-gray-400">{request.userEmail}</p>
-         </div>
+            <div className="flex justify-between items-start">
+               <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                     <span className="font-black text-lg">Rs {request.amountRs}</span>
+                     <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${request.status === 'pending' ? 'bg-amber-100 text-amber-700' : request.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                       {request.status === 'Approved' ? 'Approval' : request.status}
+                     </span>
+                  </div>
+                  <p className="text-xs font-bold text-gray-400">{request.userEmail}</p>
+               </div>
          <div className="text-right">
            <p className="text-xs font-bold">{request.method}</p>
            <p className="text-[10px] text-gray-400">{request.accountNumber}</p>
