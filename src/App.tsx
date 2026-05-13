@@ -130,6 +130,8 @@ export default function App() {
   const [showNotification, setShowNotification] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showPausePenalty, setShowPausePenalty] = useState(false);
 
   // --- Auth & Data Prep ---
   useEffect(() => {
@@ -240,7 +242,7 @@ export default function App() {
   // Timer for task verification
   useEffect(() => {
     let interval: any;
-    if (timeRemaining !== null && timeRemaining > 0 && isTaskRunning) {
+    if (timeRemaining !== null && timeRemaining > (0) && isTaskRunning && !isPaused) {
       interval = setInterval(() => {
         setTimeRemaining(prev => {
           if (prev && prev <= 1) {
@@ -252,7 +254,20 @@ export default function App() {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timeRemaining, isTaskRunning]);
+  }, [timeRemaining, isTaskRunning, isPaused]);
+
+  // Tab Visibility Logic
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isTaskRunning && timeRemaining !== null && timeRemaining > 0) {
+        setIsPaused(true);
+      } else if (!document.hidden && isPaused) {
+        setShowPausePenalty(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isTaskRunning, isPaused, timeRemaining]);
 
   // Trigger claim when timer reaches zero
   useEffect(() => {
@@ -264,9 +279,6 @@ export default function App() {
   const startTask = (amount: number, type: 'ad') => {
     if (isTaskRunning || !user) return;
     
-    const proceed = window.confirm("Do you want to start the 15-second timer to earn points? You must stay on this page to claim rewards.");
-    if (!proceed) return;
-
     // Save to localStorage so it persists after redirect/reload
     localStorage.setItem('pendingTask', JSON.stringify({
       task: { amount, type },
@@ -279,6 +291,8 @@ export default function App() {
     
     // Immediately trigger the timer in the UI
     setIsTaskRunning(true);
+    setIsPaused(false);
+    setShowPausePenalty(false);
     setTimeRemaining(15);
     setCurrentTask({ amount, type });
   };
@@ -342,6 +356,8 @@ export default function App() {
     localStorage.removeItem('pendingTask');
     setIsTaskRunning(false);
     setIsProcessingClaim(false);
+    setIsPaused(false);
+    setShowPausePenalty(false);
     setCurrentTask(null);
     setTimeRemaining(null);
   };
@@ -729,27 +745,68 @@ export default function App() {
                   className="bg-slate-900 text-white p-6 rounded-[2rem] flex flex-col items-center gap-4 shadow-2xl relative overflow-hidden"
                 >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/20 blur-[40px]" />
-                  <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
-                    <History className={timeRemaining && timeRemaining > (0) ? "animate-spin text-brand-primary w-8 h-8" : "text-emerald-500 w-8 h-8"} />
-                  </div>
-                  <div className="text-center space-y-1">
-                    <h4 className="font-display font-black uppercase text-xl tracking-tight">
-                      {timeRemaining && timeRemaining > (0) ? "VERIFYING VIEW" : "PROCESSING..."}
-                    </h4>
-                    <p className="text-white/40 font-medium text-xs">
-                      {timeRemaining && timeRemaining > (0) 
-                        ? `Stay on this page for ${timeRemaining}s. Do not minimize.` 
-                        : "Verification successful. Finalizing credit."}
-                    </p>
-                  </div>
-                  <div className="w-full bg-white/5 h-3 rounded-full p-0.5 border border-white/10 mt-2">
-                    <motion.div 
-                      className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"
-                      initial={{ width: "100%" }}
-                      animate={{ width: `${(timeRemaining || 0) / 15 * 100}%` }}
-                    />
-                  </div>
-                  {timeRemaining === 0 && (
+                  
+                  <AnimatePresence mode="wait">
+                    {isPaused ? (
+                      <motion.div 
+                        key="paused"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="text-center space-y-4 py-4"
+                      >
+                         <div className="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center border border-amber-500/30 mx-auto">
+                           <AlertCircle className="text-amber-500 w-8 h-8" />
+                         </div>
+                         <div className="space-y-1">
+                           <h4 className="font-display font-black text-amber-500 uppercase text-lg tracking-tight">TIMER PAUSED</h4>
+                           <p className="text-white/60 text-[10px] font-bold max-w-[200px] mx-auto leading-relaxed">
+                             AP KO POINT NAHI MILE! Barae mehar bani 15 second ke bad hi back aya kre. Page chorne se verification ruk jati ha.
+                           </p>
+                         </div>
+                         <button 
+                           onClick={() => {
+                             setIsPaused(false);
+                             setShowPausePenalty(false);
+                           }}
+                           className="bg-brand-primary text-white font-black px-8 py-3 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-brand-primary/30"
+                         >
+                           Resume Ad Verification
+                         </button>
+                      </motion.div>
+                    ) : (
+                      <motion.div 
+                        key="running"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="flex flex-col items-center gap-4 w-full"
+                      >
+                        <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10">
+                          <History className={timeRemaining && timeRemaining > (0) ? "animate-spin text-brand-primary w-8 h-8" : "text-emerald-500 w-8 h-8"} />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <h4 className="font-display font-black uppercase text-xl tracking-tight">
+                            {timeRemaining && timeRemaining > (0) ? "VERIFYING VIEW" : "PROCESSING..."}
+                          </h4>
+                          <p className="text-white/40 font-medium text-xs">
+                            {timeRemaining && timeRemaining > (0) 
+                              ? `Stay on this page for ${timeRemaining}s. Do not minimize.` 
+                              : "Verification successful. Finalizing credit."}
+                          </p>
+                        </div>
+                        <div className="w-full bg-white/5 h-3 rounded-full p-0.5 border border-white/10 mt-2">
+                          <motion.div 
+                            className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+                            initial={{ width: "100%" }}
+                            animate={{ width: `${(timeRemaining || 0) / 15 * 100}%` }}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {timeRemaining === 0 && !isPaused && (
                     <button 
                       onClick={resetTaskState}
                       className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors mt-2"
