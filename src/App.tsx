@@ -235,6 +235,7 @@ export default function App() {
   const [isProcessingClaim, setIsProcessingClaim] = useState(false);
   const [currentTask, setCurrentTask] = useState<{amount: number, type: 'ad'} | null>(null);
   const [withdrawAmountRs, setWithdrawAmountRs] = useState<string>("");
+  const [localClaimSuccess, setLocalClaimSuccess] = useState(false);
 
   // Timer for task verification
   useEffect(() => {
@@ -244,7 +245,6 @@ export default function App() {
         setTimeRemaining(prev => {
           if (prev && prev <= 1) {
             clearInterval(interval);
-            if (currentTask && user) handleAutoClaim(currentTask, user.uid);
             return 0;
           }
           return prev ? prev - 1 : 0;
@@ -252,7 +252,14 @@ export default function App() {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timeRemaining, isTaskRunning, currentTask, user]);
+  }, [timeRemaining, isTaskRunning]);
+
+  // Trigger claim when timer reaches zero
+  useEffect(() => {
+    if (timeRemaining === 0 && isTaskRunning && !isProcessingClaim && currentTask && user) {
+      handleAutoClaim(currentTask, user.uid);
+    }
+  }, [timeRemaining, isTaskRunning, isProcessingClaim, currentTask, user]);
 
   const startTask = (amount: number, type: 'ad') => {
     if (isTaskRunning || !user) return;
@@ -325,7 +332,8 @@ export default function App() {
       setIsProcessingClaim(false);
       setCurrentTask(null);
       setTimeRemaining(null);
-      alert("Verification successful! Points added.");
+      setLocalClaimSuccess(true);
+      setTimeout(() => setLocalClaimSuccess(false), 5000);
     }
   };
 
@@ -503,6 +511,27 @@ export default function App() {
                 <p className="text-xs text-gray-500">{userData.notification.message}</p>
              </div>
              <button onClick={() => setShowNotification(false)} className="text-gray-400 font-bold p-1">×</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Local Claim Notification */}
+      <AnimatePresence>
+        {localClaimSuccess && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-28 left-4 right-4 z-[100] p-4 rounded-2xl shadow-2xl flex items-center gap-4 bg-slate-900 border border-brand-primary/30"
+          >
+             <div className="w-10 h-10 bg-brand-primary/20 rounded-xl flex items-center justify-center">
+                <Gift className="w-5 h-5 text-brand-primary" />
+             </div>
+             <div className="flex-1">
+                <h4 className="font-display font-black text-white text-xs uppercase tracking-widest">Points Claimed!</h4>
+                <p className="text-[10px] text-white/50 font-bold">Your points have been added to your vault.</p>
+             </div>
+             <CheckCircle2 className="text-emerald-500" />
           </motion.div>
         )}
       </AnimatePresence>
