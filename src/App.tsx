@@ -53,6 +53,11 @@ interface FirestoreErrorInfo {
     email?: string | null;
     emailVerified?: boolean | null;
     isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
   }
 }
 
@@ -64,6 +69,11 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
       email: auth.currentUser?.email,
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
     },
     operationType,
     path
@@ -131,7 +141,6 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [showPausePenalty, setShowPausePenalty] = useState(false);
 
   // --- Auth & Data Prep ---
   useEffect(() => {
@@ -239,35 +248,46 @@ export default function App() {
   const [withdrawAmountRs, setWithdrawAmountRs] = useState<string>("");
   const [localClaimSuccess, setLocalClaimSuccess] = useState(false);
 
+  // Favicon Updater
+  useEffect(() => {
+    const link = document.querySelector("link[rel~='icon']") || document.createElement('link');
+    (link as any).rel = 'icon';
+    (link as any).href = 'data:image/svg+xml,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M50 5 L85 25 L85 75 L50 95 L15 75 L15 25 Z" stroke="%234F46E5" stroke-width="8" fill="%230F172A"/></svg>';
+    document.getElementsByTagName('head')[0].appendChild(link);
+  }, []);
+
   // Timer for task verification
   useEffect(() => {
     let interval: any;
     if (timeRemaining !== null && timeRemaining > (0) && isTaskRunning && !isPaused) {
+      const endTimestamp = Date.now() + timeRemaining * 1000;
+      
       interval = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev && prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev ? prev - 1 : 0;
-        });
-      }, 1000);
+        const now = Date.now();
+        const diff = Math.max(0, Math.ceil((endTimestamp - now) / 1000));
+        
+        if (diff !== timeRemaining) {
+          setTimeRemaining(diff);
+        }
+        
+        if (diff <= 0) {
+          clearInterval(interval);
+        }
+      }, 200);
     }
     return () => clearInterval(interval);
-  }, [timeRemaining, isTaskRunning, isPaused]);
+  }, [isTaskRunning, isPaused, timeRemaining]);
 
   // Tab Visibility Logic
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && isTaskRunning && timeRemaining !== null && timeRemaining > 0) {
+      if (document.hidden && isTaskRunning && timeRemaining !== null && timeRemaining > (0)) {
         setIsPaused(true);
-      } else if (!document.hidden && isPaused) {
-        setShowPausePenalty(true);
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [isTaskRunning, isPaused, timeRemaining]);
+  }, [isTaskRunning, timeRemaining]);
 
   // Trigger claim when timer reaches zero
   useEffect(() => {
@@ -292,7 +312,6 @@ export default function App() {
     // Immediately trigger the timer in the UI
     setIsTaskRunning(true);
     setIsPaused(false);
-    setShowPausePenalty(false);
     setTimeRemaining(15);
     setCurrentTask({ amount, type });
   };
@@ -312,22 +331,24 @@ export default function App() {
           points: (currentData.points || 0) + amount 
         };
 
-        if (!currentData.hasPerformedFirstTask && currentData.referredBy) {
+        // GIVE REFERRER A BONUS EVERY TIME
+        if (currentData.referredBy) {
           const referrerQuery = query(collection(db, 'users'), where('referralCode', '==', currentData.referredBy));
           const referrerSnap = await getDocs(referrerQuery).catch(err => handleFirestoreError(err, OperationType.LIST, 'users (referral query)'));
           
           if (referrerSnap && !referrerSnap.empty) {
             const referrerDoc = referrerSnap.docs[0];
+            const bonusPoints = 2; // Fixed bonus for every ad watched by a referral
+            
             await updateDoc(doc(db, 'users', referrerDoc.id), {
-              points: (referrerDoc.data().points || 0) + 15,
+              points: (referrerDoc.data().points || 0) + bonusPoints,
               notification: {
-                message: `Referral Bonus! Your friend completed a task. You earned 15 pts.`,
+                message: `Referral Bonus! A friend completed a task. You earned ${bonusPoints} pts.`,
                 type: 'success',
                 timestamp: Date.now()
               }
             }).catch(err => handleFirestoreError(err, OperationType.WRITE, 'users/' + referrerDoc.id));
           }
-          updates.hasPerformedFirstTask = true;
         }
 
         await updateDoc(userRef, updates).catch(err => handleFirestoreError(err, OperationType.WRITE, 'users/' + uid));
@@ -357,7 +378,6 @@ export default function App() {
     setIsTaskRunning(false);
     setIsProcessingClaim(false);
     setIsPaused(false);
-    setShowPausePenalty(false);
     setCurrentTask(null);
     setTimeRemaining(null);
   };
@@ -664,38 +684,59 @@ export default function App() {
               </div>
 
               {/* Referral Tool */}
-              <div className="glass-card p-6 space-y-6">
-                <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 bg-pink-100 rounded-[1.25rem] flex items-center justify-center text-pink-500 shadow-inner">
-                     <Share2 className="w-6 h-6" />
-                   </div>
-                   <div className="space-y-0.5">
-                     <h3 className="font-display font-black text-lg tracking-tight">Referral Network</h3>
-                     <p className="text-xs text-slate-400 font-medium">Earn <span className="text-pink-500 font-bold">15 PTS</span> for every active referral.</p>
-                   </div>
-                </div>
-                <div className="flex gap-2">
-                   <div 
-                    className="flex-1 bg-slate-50 border border-slate-200/50 rounded-2xl px-5 py-3.5 font-display font-black text-slate-600 flex items-center justify-between cursor-pointer group"
-                    onClick={() => {
-                        navigator.clipboard.writeText(userData?.referralCode || "");
-                        alert("Referral code copied!");
-                    }}
-                   >
-                     {userData?.referralCode}
-                     <div className="w-8 h-8 bg-white border border-slate-200 rounded-lg flex items-center justify-center group-active:scale-90 transition-transform">
-                        <Share2 className="w-3.5 h-3.5 text-slate-400" />
-                     </div>
-                   </div>
-                   <button 
-                     onClick={() => {
-                       const link = `https://rewardshub.pk/join?ref=${userData?.referralCode}`;
-                       navigator.share ? navigator.share({ title: 'Join Rewards Hub', text: 'Earn points with me!', url: link }) : alert(link);
-                     }}
-                     className="bg-slate-900 text-white px-8 rounded-2xl font-display font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-transform"
-                    >
-                      Invite
-                   </button>
+              <div className="relative group overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-purple-500/5 rounded-[2.5rem]" />
+                <div className="relative glass-card p-8 space-y-6 border-pink-100/50">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-pink-500/30">
+                      <Share2 className="w-7 h-7" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <h3 className="font-display font-black text-xl tracking-tight uppercase">Invite & Earn</h3>
+                      <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+                        Get <span className="text-pink-600">2 PTS</span> for every ad they watch
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <div 
+                        className="flex-1 bg-slate-50 border border-slate-200/60 rounded-2xl px-5 py-4 font-display font-black text-slate-700 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all group"
+                        onClick={() => {
+                            navigator.clipboard.writeText(userData?.referralCode || "");
+                            alert("Referral code copied!");
+                        }}
+                      >
+                        <span className="tracking-widest">{userData?.referralCode}</span>
+                        <div className="w-9 h-9 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-300 group-hover:text-pink-500 group-hover:border-pink-200 transition-colors shadow-sm">
+                           <Gift className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          const link = `${window.location.origin}?ref=${userData?.referralCode}`;
+                          if (navigator.share) {
+                            navigator.share({ 
+                              title: 'Rewards Hub PK', 
+                              text: 'Join me on Rewards Hub and earn money by watching ads!', 
+                              url: link 
+                            }).catch(() => {
+                              navigator.clipboard.writeText(link);
+                              alert("Link copied to clipboard!");
+                            });
+                          } else {
+                            navigator.clipboard.writeText(link);
+                            alert("Link copied to clipboard!");
+                          }
+                        }}
+                        className="bg-slate-900 text-white px-8 rounded-2xl font-display font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-900/20 active:scale-95 transition-all hover:bg-slate-800"
+                        >
+                          Send Link
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-center text-slate-400 font-black uppercase tracking-widest">Unlimited earnings • No cap on referrals</p>
+                  </div>
                 </div>
               </div>
 
@@ -765,14 +806,15 @@ export default function App() {
                            </p>
                          </div>
                          <button 
-                           onClick={() => {
-                             setIsPaused(false);
-                             setShowPausePenalty(false);
-                           }}
-                           className="bg-brand-primary text-white font-black px-8 py-3 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-brand-primary/30"
-                         >
-                           Resume Ad Verification
-                         </button>
+                            onClick={() => {
+                              const adLink = "https://omg10.com/4/10791490";
+                              window.open(adLink, '_blank');
+                              setIsPaused(false);
+                            }}
+                            className="bg-brand-primary text-white font-black px-8 py-3 rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-brand-primary/30 active:scale-95 transition-all"
+                          >
+                            Resume Ad & Continue
+                          </button>
                       </motion.div>
                     ) : (
                       <motion.div 
