@@ -327,6 +327,7 @@ export default function App() {
     } catch (err) {
       console.error("Claim error:", err);
     } finally {
+      // CLEAR ALL STATES TO PREVENT STICKY UI
       localStorage.removeItem('pendingTask');
       setIsTaskRunning(false);
       setIsProcessingClaim(false);
@@ -335,6 +336,14 @@ export default function App() {
       setLocalClaimSuccess(true);
       setTimeout(() => setLocalClaimSuccess(false), 5000);
     }
+  };
+
+  const resetTaskState = () => {
+    localStorage.removeItem('pendingTask');
+    setIsTaskRunning(false);
+    setIsProcessingClaim(false);
+    setCurrentTask(null);
+    setTimeRemaining(null);
   };
 
   const handleWithdrawal = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -725,10 +734,10 @@ export default function App() {
                   </div>
                   <div className="text-center space-y-1">
                     <h4 className="font-display font-black uppercase text-xl tracking-tight">
-                      {timeRemaining && timeRemaining > 0 ? "VERIFYING VIEW" : "PROCESSING..."}
+                      {timeRemaining && timeRemaining > (0) ? "VERIFYING VIEW" : "PROCESSING..."}
                     </h4>
                     <p className="text-white/40 font-medium text-xs">
-                      {timeRemaining && timeRemaining > 0 
+                      {timeRemaining && timeRemaining > (0) 
                         ? `Stay on this page for ${timeRemaining}s. Do not minimize.` 
                         : "Verification successful. Finalizing credit."}
                     </p>
@@ -740,6 +749,14 @@ export default function App() {
                       animate={{ width: `${(timeRemaining || 0) / 15 * 100}%` }}
                     />
                   </div>
+                  {timeRemaining === 0 && (
+                    <button 
+                      onClick={resetTaskState}
+                      className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors mt-2"
+                    >
+                      Stuck? Reset & Try Again
+                    </button>
+                  )}
                 </motion.div>
               )}
 
